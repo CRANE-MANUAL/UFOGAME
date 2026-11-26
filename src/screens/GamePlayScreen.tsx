@@ -27,6 +27,7 @@ export function GamePlayScreen({
   const [cameraView, setCameraView] = useState<CameraView>('front');
   const [cameraPresetNonce, setCameraPresetNonce] = useState(0);
   const [roundNonce, setRoundNonce] = useState(0);
+  const [hardResetNonce, setHardResetNonce] = useState(0);
   const [resultState, setResultState] = useState<'playing' | 'won' | 'failed'>(
     'playing',
   );
@@ -126,6 +127,22 @@ export function GamePlayScreen({
     });
     setRoundNonce((n) => n + 1);
     onRoundStart(stage);
+  };
+
+  const handleHardReset = () => {
+    inputRef.current = { moveRight: false, moveBack: false };
+    setHoldingButton(null);
+    setResultState('playing');
+    setFailReason('');
+    setTelemetry({
+      phase: 'move_right',
+      isRingHooked: false,
+      ringLiftHeight: 0,
+      guideTitle: '→ 横移動',
+      guideDetail: '長押しで右へ移動',
+      failReason: null,
+    });
+    setHardResetNonce((n) => n + 1);
   };
 
   const rightActive =
@@ -282,12 +299,24 @@ export function GamePlayScreen({
           cameraView={cameraView}
           cameraPresetNonce={cameraPresetNonce}
           roundNonce={roundNonce}
+          hardResetNonce={hardResetNonce}
           inputRef={inputRef}
           onUserOrbitStart={handleUserOrbitStart}
           onTelemetry={setTelemetry}
           onWin={handleWin}
           onFail={handleFail}
         />
+
+        {resultState === 'playing' && (
+          <button
+            type="button"
+            onClick={handleHardReset}
+            className="absolute top-2.5 left-3 z-10 flex items-center gap-1.5 min-h-[34px] px-3 py-1 rounded-full bg-slate-900/75 hover:bg-slate-900 text-white text-[11px] font-bold shadow-sm active:scale-95 transition-all cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>初期位置に戻す</span>
+          </button>
+        )}
 
         <div className="pointer-events-none absolute top-2.5 right-3 z-10 px-2.5 py-1 rounded-full bg-slate-900/65 text-white text-[11px] font-medium tracking-tight">
           ドラッグで自由視点・拡大縮小
@@ -297,11 +326,13 @@ export function GamePlayScreen({
         <div className="pointer-events-none absolute inset-x-4 bottom-3 z-10 flex flex-col items-center gap-1.5">
           {telemetry.isRingHooked && resultState === 'playing' && (
             <div className="px-3.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-md">
-              {stage.stageType === 'bridge'
-                ? 'アームが箱をキャッチ！'
-                : stage.hook.type === 'eye_plate'
-                  ? 'フックがアイプレートに掛かった！'
-                  : 'リングが？型フックに掛かった！'}
+              {stage.stageType === 'bounce'
+                ? 'パワーMAX・Sアームが景品をキャッチ！'
+                : stage.stageType === 'bridge'
+                  ? 'アームが箱をキャッチ！'
+                  : stage.hook.type === 'eye_plate'
+                    ? 'フックが金具に掛かった！'
+                    : 'リングが？型フックに掛かった！'}
             </div>
           )}
 
@@ -420,11 +451,13 @@ export function GamePlayScreen({
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               {failReason ||
-                (stage.stageType === 'bridge'
-                  ? '箱を突っ張り棒の隙間に落とせませんでした。'
-                  : stage.hook.type === 'eye_plate'
-                    ? 'フックがアイプレートに掛かりませんでした。'
-                    : 'リングが？型フックに掛かりませんでした。')}
+                (stage.stageType === 'bounce'
+                  ? 'バウンドした景品が穴に入りませんでした。'
+                  : stage.stageType === 'bridge'
+                    ? '箱を突っ張り棒の隙間に落とせませんでした。'
+                    : stage.hook.type === 'eye_plate'
+                      ? 'フックが金具に掛かりませんでした。'
+                      : 'リングが？型フックに掛かりませんでした。')}
             </p>
             <div className="space-y-2.5 pt-1">
               <button
@@ -434,6 +467,14 @@ export function GamePlayScreen({
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>もう一度挑戦</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleHardReset}
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-sm cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>初期位置に戻す</span>
               </button>
               <button
                 type="button"

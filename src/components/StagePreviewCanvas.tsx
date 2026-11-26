@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { BOUNCE_JAR_LAYOUTS } from '../three/bouncePhysics';
 import {
   buildArcadeTrolley,
+  buildBounceClawRig,
+  buildBounceEnvironment,
+  buildBouncePrizeJar,
   buildBridgeClawRig,
   buildBridgeEnvironment,
   buildBridgePrizeBox,
@@ -32,6 +36,7 @@ export function StagePreviewCanvas({ stage }: StagePreviewCanvasProps) {
     if (!container) return;
 
     const isBridgeStage = stage.stageType === 'bridge';
+    const isBounceStage = stage.stageType === 'bounce';
     const isSoftwareGl = detectSoftwareWebGL();
     const renderer = createStudioRenderer(container, isSoftwareGl);
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
@@ -47,7 +52,10 @@ export function StagePreviewCanvas({ stage }: StagePreviewCanvasProps) {
       0.1,
       40,
     );
-    if (isBridgeStage) {
+    if (isBounceStage) {
+      camera.position.set(0.0, 0.56, 2.85);
+      camera.lookAt(0.0, -0.34, 0);
+    } else if (isBridgeStage) {
       camera.position.set(0.0, 0.34, 2.75);
       camera.lookAt(0.0, -0.34, 0);
     } else {
@@ -76,12 +84,12 @@ export function StagePreviewCanvas({ stage }: StagePreviewCanvasProps) {
       clawRig.leftArmGroup.position
         .copy(headPos)
         .add(clawRig.leftArmPivotLocal);
-      clawRig.leftArmGroup.rotation.z = -0.32;
+      clawRig.leftArmGroup.rotation.z = -0.02;
 
       clawRig.rightArmGroup.position
         .copy(headPos)
         .add(clawRig.rightArmPivotLocal);
-      clawRig.rightArmGroup.rotation.z = 0.32;
+      clawRig.rightArmGroup.rotation.z = 0.02;
 
       scene.add(
         clawRig.carriageGroup,
@@ -96,6 +104,51 @@ export function StagePreviewCanvas({ stage }: StagePreviewCanvasProps) {
       const rodR = bridgeEnv.rodSpecs[1]?.radius ?? 0.022;
       box.group.position.set(0, innerRodY + rodR + stage.prize.height * 0.5, 0);
       scene.add(box.group);
+    } else if (isBounceStage) {
+      const bounceEnv = buildBounceEnvironment(isSoftwareGl, maxAniso);
+      bounceEnv.zBridgeGroup.position.x = 0.04;
+      scene.add(bounceEnv.group);
+
+      const clawRig = buildBounceClawRig(normalMap, maxAniso, isSoftwareGl);
+      const trolleyPos = new THREE.Vector3(0.04, 2.25, -0.34);
+      const headPos = new THREE.Vector3(0.04, 0.65, -0.34);
+      clawRig.carriageGroup.position.copy(trolleyPos);
+      clawRig.headGroup.position.copy(headPos);
+      clawRig.updatePole(trolleyPos, headPos);
+
+      clawRig.leftArmGroup.position
+        .copy(headPos)
+        .add(clawRig.leftArmPivotLocal);
+      clawRig.leftArmGroup.rotation.z = -0.18;
+
+      clawRig.rightArmGroup.position
+        .copy(headPos)
+        .add(clawRig.rightArmPivotLocal);
+      clawRig.rightArmGroup.rotation.z = 0.18;
+
+      scene.add(
+        clawRig.carriageGroup,
+        clawRig.poleMesh,
+        clawRig.headGroup,
+        clawRig.leftArmGroup,
+        clawRig.rightArmGroup,
+      );
+
+      BOUNCE_JAR_LAYOUTS.forEach((spec) => {
+        const jar = buildBouncePrizeJar(
+          spec.title,
+          spec.bandColor,
+          spec.fruitColor,
+          spec.lidColor,
+          maxAniso,
+        );
+        jar.group.position.set(
+          spec.x,
+          bounceEnv.greenDeckTopY + jar.height * 0.5,
+          spec.z,
+        );
+        scene.add(jar.group);
+      });
     } else {
       const cabinet = buildCabinetEnvironment(isSoftwareGl, maxAniso);
       cabinet.zBridgeGroup.position.x = -0.22;

@@ -1285,7 +1285,7 @@ export class CranePhysicsWorld {
             this.phase = 'failed';
             this.callbacks.onFail(
               this.hookModel.hookType === 'eye_plate'
-                ? 'フックがアイプレートに掛かりませんでした'
+                ? 'フックが金具に掛かりませんでした'
                 : 'リングが？型フックに掛かりませんでした',
             );
           }
@@ -1327,7 +1327,7 @@ export class CranePhysicsWorld {
       case 'auto_down':
         guideTitle = '↓ 下降（自動）';
         guideDetail = isEyePlate
-          ? 'Jフックがアイプレートへ降下中'
+          ? 'Jフックが景品の金具へ降下中'
           : 'リングが？型フックへ降下中';
         break;
       case 'auto_up':
@@ -1361,7 +1361,7 @@ export class CranePhysicsWorld {
       failReason:
         this.phase === 'failed'
           ? isEyePlate
-            ? 'フックがアイプレートに掛かりませんでした'
+            ? 'フックが金具に掛かりませんでした'
             : 'リングが？型フックに掛かりませんでした'
           : null,
     };

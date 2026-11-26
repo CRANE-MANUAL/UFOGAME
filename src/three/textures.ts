@@ -263,10 +263,10 @@ export function createUfoCatcherFaceTexture(
   });
 
   ctx.fillStyle = '#334155';
-  ctx.font = '800 13px "Outfit", sans-serif';
+  ctx.font = '900 15px "Noto Sans JP", "Outfit", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('UFO CATCHER', 128, 82);
+  ctx.fillText('トレすぎ倉庫', 128, 82);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -385,6 +385,167 @@ export function createArcadeWallPatternTexture(
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(3, 3);
+  tex.anisotropy = Math.min(maxAnisotropy, 4);
+  return tex;
+}
+
+export function createGreenStripedMatTexture(
+  maxAnisotropy: number,
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  const stripeCount = 12;
+  const stripeW = 256 / stripeCount;
+  for (let i = 0; i < stripeCount; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#15803d' : '#84cc16';
+    ctx.fillRect(i * stripeW, 0, stripeW + 1, 256);
+  }
+
+  // Subtle fabric weave lines
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  for (let y = 0; y < 256; y += 8) {
+    ctx.fillRect(0, y, 256, 2);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 1);
+  tex.anisotropy = Math.min(maxAnisotropy, 4);
+  return tex;
+}
+
+export function createFruitJarLabelTexture(
+  title: string,
+  bandColor: string,
+  fruitColor: string,
+  maxAnisotropy: number,
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Warm golden syrup & fruit chunks background
+  const bg = ctx.createLinearGradient(0, 0, 0, 256);
+  bg.addColorStop(0, '#fef08a');
+  bg.addColorStop(0.5, '#facc15');
+  bg.addColorStop(1, '#eab308');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Fruit chunks texture behind label
+  ctx.fillStyle = fruitColor;
+  for (let i = 0; i < 14; i++) {
+    const cx = (i * 53) % 240 + 8;
+    const cy = (i * 71) % 220 + 18;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14 + (i % 3) * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Crisp wrap-around brand band
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 74, 256, 112);
+
+  ctx.fillStyle = bandColor;
+  ctx.fillRect(0, 74, 256, 18);
+  ctx.fillRect(0, 168, 256, 18);
+
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.roundRect(74, 96, 108, 34, 10);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 19px "Outfit", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FRUITS', 128, 113);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 18px "Noto Sans JP", sans-serif';
+  ctx.fillText(title, 128, 148);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(maxAnisotropy, 4);
+  return tex;
+}
+
+export function createBounceHeadFaceTexture(
+  maxAnisotropy: number,
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#18181b';
+  ctx.fillRect(0, 0, 256, 128);
+
+  ctx.strokeStyle = '#3f3f46';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(22, 16, 212, 96, 24);
+  ctx.stroke();
+
+  ctx.fillStyle = '#e11d48';
+  ctx.beginPath();
+  ctx.roundRect(76, 26, 104, 22, 11);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 12px "Outfit", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('POWER MAX', 128, 37);
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '900 20px "Noto Sans JP", "Outfit", sans-serif';
+  ctx.fillText('トレすぎ倉庫', 128, 76);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(maxAnisotropy, 4);
+  return tex;
+}
+
+export function createBouncePopSignTexture(
+  headline: string,
+  subText: string,
+  bgHex: string,
+  accentHex: string,
+  maxAnisotropy: number,
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, 256, 128);
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 244, 116);
+
+  ctx.fillStyle = accentHex;
+  ctx.font = '900 30px "Noto Sans JP", "Outfit", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(headline, 128, 48);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 17px "Noto Sans JP", sans-serif';
+  ctx.fillText(subText, 128, 92);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = Math.min(maxAnisotropy, 4);
   return tex;
 }

@@ -15,9 +15,9 @@ import type { PhysicsCallbacks } from './physics';
 
 const TROLLEY_Y = 2.25;
 const START_X = -0.78;
-const START_Z = 0.65;
+const START_Z = 0.6;
 const REST_HEAD_Y = 1.18;
-const MIN_HEAD_Y = 0.04;
+const MIN_HEAD_Y = -0.045;
 
 const GROUP_BOX = 1;
 const GROUP_ROD = 2;
@@ -54,6 +54,8 @@ export class BridgePhysicsWorld {
   private backHeldOnce = false;
   private bottomStage: 'pause' | 'closing' = 'pause';
   private bottomTimer = 0;
+  private homeCycleStage: 'moving' | 'opening' | 'closing' | 'done' = 'moving';
+  private homeCycleTimer = 0;
   private returnSettleTimer = 0;
   private finishTriggered = false;
   private physicsAccumulator = 0;
@@ -77,8 +79,8 @@ export class BridgePhysicsWorld {
     this.env = env;
     this.callbacks = callbacks;
 
-    // Rest box centered across the two inner bridge rods (z = ±0.20, y = -0.72)
-    const innerRodY = env.rodSpecs[1]?.y ?? -0.72;
+    // Rest box centered across the two lower inner bridge rods (z = ±0.23, y = -0.76)
+    const innerRodY = env.rodSpecs[1]?.y ?? -0.76;
     const rodR = env.rodSpecs[1]?.radius ?? 0.022;
     this.initialBoxPos = new THREE.Vector3(
       0,
@@ -103,18 +105,18 @@ export class BridgePhysicsWorld {
 
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(boxMat, rodMat, {
-        friction: 0.42,
-        restitution: 0.05,
+        friction: 0.22,
+        restitution: 0.04,
         contactEquationStiffness: 6e7,
         contactEquationRelaxation: 2.2,
       }),
     );
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(boxMat, armMat, {
-        friction: 0.88,
+        friction: 0.36,
         restitution: 0.04,
-        contactEquationStiffness: 5e7,
-        contactEquationRelaxation: 2.4,
+        contactEquationStiffness: 4.5e7,
+        contactEquationRelaxation: 2.6,
       }),
     );
     this.world.addContactMaterial(
@@ -177,12 +179,12 @@ export class BridgePhysicsWorld {
     this.world.addConstraint(this.leftHinge);
     this.world.addConstraint(this.rightHinge);
 
-    // Prize Box Rigid Body
+    // Heavy Prize Box Rigid Body (shifts/tilts across rods rather than lifting cleanly into the air)
     this.boxBody = new CANNON.Body({
-      mass: 0.72,
+      mass: Math.max(2.6, stage.prize.mass),
       material: boxMat,
-      linearDamping: 0.14,
-      angularDamping: 0.24,
+      linearDamping: 0.16,
+      angularDamping: 0.28,
       collisionFilterGroup: GROUP_BOX,
       collisionFilterMask: GROUP_ROD | GROUP_ARM | GROUP_CABINET,
     });
@@ -306,9 +308,17 @@ export class BridgePhysicsWorld {
     addStaticBox(1.07, 0.48, 0.36, 0, -1.3, -1.18);
     addStaticBox(1.07, 0.48, 0.325, 0, -1.3, 1.145);
 
-    // Side clamp rails at x = ±1.04
-    addStaticBox(0.04, 0.05, 0.66, -1.04, -0.71, 0);
-    addStaticBox(0.04, 0.05, 0.66, 1.04, -0.71, 0);
+    // Side clamp rails at x = ±1.04 + vertical risers for elevated outer rods
+    addStaticBox(0.04, 0.06, 0.53, -1.04, -0.76, 0);
+    addStaticBox(0.04, 0.06, 0.53, 1.04, -0.76, 0);
+    addStaticBox(0.028, 0.08, 0.028, -1.04, -0.69, -0.44);
+    addStaticBox(0.028, 0.08, 0.028, -1.04, -0.69, 0.44);
+    addStaticBox(0.028, 0.08, 0.028, 1.04, -0.69, -0.44);
+    addStaticBox(0.028, 0.08, 0.028, 1.04, -0.69, 0.44);
+
+    // Clear acrylic guard decks blocking drops outside the middle 2 rods (z > 0.245 and z < -0.245)
+    addStaticBox(1.04, 0.015, 0.3, 0, -0.785, 0.545);
+    addStaticBox(1.04, 0.015, 0.3, 0, -0.785, -0.545);
 
     // Pit floor
     addStaticBox(3.4, 0.08, 2.25, 0, -1.86, -0.2);
@@ -323,8 +333,8 @@ export class BridgePhysicsWorld {
     this.headBody.velocity.set(0, 0, 0);
     this.headBody.quaternion.set(0, 0, 0, 1);
 
-    this.targetArmOpen = 0.28;
-    this.armMotorForce = 3.2;
+    this.targetArmOpen = 0.01;
+    this.armMotorForce = 2.6;
 
     const lp = this.clawRig.leftArmPivotLocal;
     const rp = this.clawRig.rightArmPivotLocal;
@@ -368,6 +378,8 @@ export class BridgePhysicsWorld {
     this.backHeldOnce = false;
     this.bottomStage = 'pause';
     this.bottomTimer = 0;
+    this.homeCycleStage = 'moving';
+    this.homeCycleTimer = 0;
     this.returnSettleTimer = 0;
     this.finishTriggered = false;
     this.physicsAccumulator = 0;
@@ -406,16 +418,16 @@ export class BridgePhysicsWorld {
     dt: number,
   ): void {
     if (this.phase === 'move_right') {
-      this.targetArmOpen = 0.28;
-      this.armMotorForce = 3.2;
+      this.targetArmOpen = 0.01;
+      this.armMotorForce = 0.15;
       if (input.moveRight) {
         this.rightHeldOnce = true;
       } else if (this.rightHeldOnce) {
         this.phase = 'move_back';
       }
     } else if (this.phase === 'move_back') {
-      this.targetArmOpen = 0.28;
-      this.armMotorForce = 3.2;
+      this.targetArmOpen = 0.01;
+      this.armMotorForce = 0.15;
       if (input.moveBack) {
         this.backHeldOnce = true;
       } else if (this.backHeldOnce) {
@@ -425,26 +437,29 @@ export class BridgePhysicsWorld {
       }
     } else if (this.phase === 'auto_down') {
       this.targetArmOpen = 0.64;
-      this.armMotorForce = 3.4;
+      this.armMotorForce = 0.18;
       if (this.headY <= MIN_HEAD_Y + 0.005) {
         this.bottomTimer += dt;
         if (this.bottomStage === 'pause' && this.bottomTimer >= 0.14) {
           this.bottomStage = 'closing';
           this.bottomTimer = 0;
         } else if (this.bottomStage === 'closing') {
-          this.targetArmOpen = -0.04;
-          this.armMotorForce = 4.6;
+          this.targetArmOpen = -0.02;
+          // Gentle weak closing force (stroking/nudging feel)
+          this.armMotorForce = 0.055;
           if (this.bottomTimer >= 0.62) {
             this.phase = 'auto_up';
           }
         }
       }
     } else if (this.phase === 'auto_up') {
-      // Maintain steady grip while lifting so off-center catches tilt/drag the box across the rods
-      this.targetArmOpen = -0.04;
-      this.armMotorForce = this.headY > 0.72 ? 2.4 : 4.2;
+      // Very weak stroking arm power: lightly strokes/nudges corners without lifting the heavy box
+      this.targetArmOpen = -0.02;
+      this.armMotorForce = this.headY > 0.16 ? 0.014 : 0.032;
       if (this.headY >= REST_HEAD_Y - 0.01) {
         this.phase = 'auto_return';
+        this.homeCycleStage = 'moving';
+        this.homeCycleTimer = 0;
         this.returnSettleTimer = 0;
       }
     }
@@ -470,25 +485,48 @@ export class BridgePhysicsWorld {
         this.headY = Math.min(REST_HEAD_Y, this.headY + targetHeadVy * dt);
       }
     } else if (this.phase === 'auto_return') {
-      this.targetArmOpen = 0.28;
-      this.armMotorForce = 3.2;
+      if (this.homeCycleStage === 'moving') {
+        this.targetArmOpen = 0.01;
+        this.armMotorForce = 0.15;
 
-      const dx = START_X - this.trolleyPos.x;
-      const dz = START_Z - this.trolleyPos.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > 0.04) {
-        const speed = THREE.MathUtils.clamp(dist * 3.0, 0.28, 0.92);
-        targetVx = (dx / dist) * speed;
-        targetVz = (dz / dist) * speed;
+        const dx = START_X - this.trolleyPos.x;
+        const dz = START_Z - this.trolleyPos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.04) {
+          const speed = THREE.MathUtils.clamp(dist * 3.0, 0.28, 0.92);
+          targetVx = (dx / dist) * speed;
+          targetVz = (dz / dist) * speed;
+        } else {
+          this.trolleyPos.x = START_X;
+          this.trolleyPos.z = START_Z;
+          this.trolleyVel.set(0, 0, 0);
+          this.homeCycleStage = 'opening';
+          this.homeCycleTimer = 0;
+        }
+      } else if (this.homeCycleStage === 'opening') {
+        this.targetArmOpen = 0.56;
+        this.armMotorForce = 0.18;
+        this.homeCycleTimer += dt;
+        if (this.homeCycleTimer >= 0.42) {
+          this.homeCycleStage = 'closing';
+          this.homeCycleTimer = 0;
+        }
+      } else if (this.homeCycleStage === 'closing') {
+        this.targetArmOpen = 0.01;
+        this.armMotorForce = 0.16;
+        this.homeCycleTimer += dt;
+        if (this.homeCycleTimer >= 0.42) {
+          this.homeCycleStage = 'done';
+          this.returnSettleTimer = 0;
+        }
       } else {
-        this.trolleyPos.x = START_X;
-        this.trolleyPos.z = START_Z;
-        this.trolleyVel.set(0, 0, 0);
+        this.targetArmOpen = 0.01;
+        this.armMotorForce = 0.16;
         this.returnSettleTimer += dt;
         const boxSpeed = this.boxBody.velocity.length();
         if (
-          (this.returnSettleTimer >= 0.45 && boxSpeed < 0.08) ||
-          this.returnSettleTimer >= 1.2
+          (this.returnSettleTimer >= 0.3 && boxSpeed < 0.08) ||
+          this.returnSettleTimer >= 1.1
         ) {
           if (!this.finishTriggered) {
             this.finishTriggered = true;
@@ -504,9 +542,7 @@ export class BridgePhysicsWorld {
     if (
       this.phase === 'move_right' ||
       this.phase === 'move_back' ||
-      (this.phase === 'auto_return' &&
-        Math.hypot(START_X - this.trolleyPos.x, START_Z - this.trolleyPos.z) >
-          0.04)
+      (this.phase === 'auto_return' && this.homeCycleStage === 'moving')
     ) {
       const accel = targetVx === 0 && targetVz === 0 ? 14 : 11;
       this.trolleyVel.x = THREE.MathUtils.lerp(
@@ -526,13 +562,13 @@ export class BridgePhysicsWorld {
       );
       this.trolleyPos.z = THREE.MathUtils.clamp(
         this.trolleyPos.z + this.trolleyVel.z * dt,
-        -0.65,
+        -0.38,
         0.72,
       );
 
       if (this.phase === 'move_right' && this.trolleyPos.x >= 0.94) {
         this.phase = 'move_back';
-      } else if (this.phase === 'move_back' && this.trolleyPos.z <= -0.64) {
+      } else if (this.phase === 'move_back' && this.trolleyPos.z <= -0.37) {
         this.phase = 'auto_down';
         this.bottomStage = 'pause';
         this.bottomTimer = 0;
@@ -701,7 +737,11 @@ export class BridgePhysicsWorld {
         break;
       case 'auto_return':
         guideTitle = '← 戻る（自動）';
-        guideDetail = '箱の動きを確認中…';
+        guideDetail =
+          this.homeCycleStage === 'opening' ||
+          this.homeCycleStage === 'closing'
+            ? '初期位置でアームを開閉中…'
+            : '箱の動きを確認中…';
         break;
       case 'won':
         guideTitle = 'GET!';

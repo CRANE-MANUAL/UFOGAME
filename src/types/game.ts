@@ -6,7 +6,7 @@ export type HookShapeType = 'question' | 'eye_plate';
 
 export type CraneToolType = 'ring' | 'j_hook';
 
-export type StageType = 'hook' | 'bridge';
+export type StageType = 'hook' | 'bridge' | 'bounce';
 
 export type PlayPhase =
   | 'move_right'

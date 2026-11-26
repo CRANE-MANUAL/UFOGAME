@@ -102,6 +102,9 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           saveData={saveData}
+          stages={STAGES}
+          activeStage={activeStage}
+          onSelectStage={setActiveStage}
           onStartGame={() => handleLaunchStage(activeStage)}
           onOpenStages={() => setScreen('stages')}
           onOpenSettings={() => setScreen('settings')}

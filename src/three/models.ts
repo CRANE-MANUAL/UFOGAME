@@ -8,9 +8,13 @@ import type {
 } from '../types/game';
 import {
   createArcadeWallPatternTexture,
+  createBounceHeadFaceTexture,
+  createBouncePopSignTexture,
   createCandyBoxTexture,
   createContactShadowTexture,
   createFigureBoxTexture,
+  createFruitJarLabelTexture,
+  createGreenStripedMatTexture,
   createPrizeBoxTexture,
   createRedTapeTexture,
   createSnackBagTexture,
@@ -1844,13 +1848,14 @@ export function buildBridgeEnvironment(
   }
 
   // Central White Drop Pit Walls & Apron Decks around the 4-Rod Bridge Opening
+  // Win opening is strictly between the inner 2 tension rods (z in [-0.23, 0.23])
   const pitBounds = {
-    minX: -1.06,
-    maxX: 1.06,
-    minZ: -0.82,
-    maxZ: 0.82,
+    minX: -0.98,
+    maxX: 0.98,
+    minZ: -0.23,
+    maxZ: 0.23,
   };
-  const pitDropY = -0.92;
+  const pitDropY = -0.96;
 
   // Surrounding upper deck aprons (left, right, back, front) forming the central pit
   const leftApron = new THREE.Mesh(
@@ -1877,6 +1882,26 @@ export function buildBridgeEnvironment(
 
   group.add(leftApron, rightApron, backApron, frontApron);
 
+  // Clear acrylic anti-drop guard plates outside the middle 2 rods (front z > 0.245, back z < -0.245)
+  // Prevents the box from passing through anywhere except the gap between the inner 2 rods
+  const guardPlateMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf8fafc,
+    metalness: 0.04,
+    roughness: 0.08,
+    clearcoat: 0.9,
+    transparent: true,
+    opacity: isSoftwareGl ? 0.16 : 0.12,
+    depthWrite: false,
+  });
+  const guardPlateGeo = new THREE.BoxGeometry(2.02, 0.018, 0.59);
+  const frontGuardPlate = new THREE.Mesh(guardPlateGeo, guardPlateMat);
+  frontGuardPlate.position.set(0, -0.784, 0.54);
+  frontGuardPlate.renderOrder = 4;
+  const backGuardPlate = new THREE.Mesh(guardPlateGeo, guardPlateMat);
+  backGuardPlate.position.set(0, -0.784, -0.54);
+  backGuardPlate.renderOrder = 4;
+  group.add(frontGuardPlate, backGuardPlate);
+
   // Two dark rubber pit wall bumpers inside the drop pit (matching photos!)
   const bumperMat = new THREE.MeshStandardMaterial({
     color: 0x1e293b,
@@ -1890,24 +1915,41 @@ export function buildBridgeEnvironment(
     group.add(b);
   });
 
-  // Left & Right White Tension Rod Clamp Rails (at x = ±1.04)
-  const clampBarGeo = new THREE.BoxGeometry(0.08, 0.1, 1.32);
+  // Left & Right White Tension Rod Clamp Rails (at x = ±1.04) + vertical risers for elevated outer rods
+  const clampBarGeo = new THREE.BoxGeometry(0.08, 0.12, 1.06);
+  const outerRiserGeo = new THREE.BoxGeometry(0.056, 0.16, 0.056);
+  const innerClampGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
   [-1.04, 1.04].forEach((rx) => {
     const bar = new THREE.Mesh(clampBarGeo, whiteMat);
-    bar.position.set(rx, -0.71, 0);
+    bar.position.set(rx, -0.76, 0);
     bar.castShadow = true;
     bar.receiveShadow = true;
     group.add(bar);
+
+    [-0.44, 0.44].forEach((rz) => {
+      const riser = new THREE.Mesh(outerRiserGeo, whiteMat);
+      riser.position.set(rx, -0.69, rz);
+      riser.castShadow = true;
+      group.add(riser);
+    });
+
+    [-0.23, 0.23].forEach((rz) => {
+      const block = new THREE.Mesh(innerClampGeo, whiteMat);
+      block.position.set(rx, -0.76, rz);
+      group.add(block);
+    });
   });
 
-  // 4 Horizontal Tension Rods ('突っ張り棒') with Silicone Anti-Slip Sleeves
+  // 4 Horizontal Tension Rods ('突っ張り棒'):
+  // Outer 2 rods higher and tight enough (0.208m diagonal clear < 0.288m box thickness)
+  // so the box can ONLY pass through the gap between the lower inner 2 rods (0.416m clear).
   const rodRadius = 0.022;
   const rodHalfLen = 1.04;
   const rodSpecs: BridgeRodSpec[] = [
-    { z: 0.52, y: -0.68, radius: rodRadius, halfLength: rodHalfLen },
-    { z: 0.2, y: -0.72, radius: rodRadius, halfLength: rodHalfLen },
-    { z: -0.2, y: -0.72, radius: rodRadius, halfLength: rodHalfLen },
-    { z: -0.52, y: -0.68, radius: rodRadius, halfLength: rodHalfLen },
+    { z: 0.44, y: -0.62, radius: rodRadius, halfLength: rodHalfLen },
+    { z: 0.23, y: -0.76, radius: rodRadius, halfLength: rodHalfLen },
+    { z: -0.23, y: -0.76, radius: rodRadius, halfLength: rodHalfLen },
+    { z: -0.44, y: -0.62, radius: rodRadius, halfLength: rodHalfLen },
   ];
 
   const steelRodMat = new THREE.MeshPhysicalMaterial({
@@ -1916,10 +1958,13 @@ export function buildBridgeEnvironment(
     roughness: 0.16,
   });
   const sleeveMat = new THREE.MeshPhysicalMaterial({
-    color: 0xf5d0fe,
+    color: 0xf472b6,
+    emissive: 0xbe185d,
+    emissiveIntensity: 0.14,
     roughness: 0.34,
-    metalness: 0.06,
-    clearcoat: 0.5,
+    metalness: 0.04,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.12,
   });
   const collarMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -1940,8 +1985,8 @@ export function buildBridgeEnvironment(
   rodCoreGeo.rotateZ(Math.PI / 2);
 
   const sleeveGeo = new THREE.CylinderGeometry(
-    rodRadius,
-    rodRadius,
+    rodRadius * 1.03,
+    rodRadius * 1.03,
     rodHalfLen * 1.72,
     18,
   );
@@ -1950,7 +1995,7 @@ export function buildBridgeEnvironment(
   const endBracketGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.08, 14);
   endBracketGeo.rotateZ(Math.PI / 2);
 
-  const oRingGeo = new THREE.TorusGeometry(rodRadius * 1.02, 0.006, 8, 16);
+  const oRingGeo = new THREE.TorusGeometry(rodRadius * 1.06, 0.006, 8, 16);
   oRingGeo.rotateY(Math.PI / 2);
 
   rodSpecs.forEach((spec) => {
@@ -1968,12 +2013,13 @@ export function buildBridgeEnvironment(
     const rightCap = new THREE.Mesh(endBracketGeo, collarMat);
     rightCap.position.set(rodHalfLen, spec.y, spec.z);
 
-    const ringL = new THREE.Mesh(oRingGeo, oRingMat);
-    ringL.position.set(-0.66, spec.y, spec.z);
-    const ringR = new THREE.Mesh(oRingGeo, oRingMat);
-    ringR.position.set(0.66, spec.y, spec.z);
+    [-0.86, -0.64, 0.64, 0.86].forEach((ox) => {
+      const ring = new THREE.Mesh(oRingGeo, oRingMat);
+      ring.position.set(ox, spec.y, spec.z);
+      group.add(ring);
+    });
 
-    group.add(core, sleeve, leftCap, rightCap, ringL, ringR);
+    group.add(core, sleeve, leftCap, rightCap);
   });
 
   // Subtle LED front edge strip & green stage '3' marker (article2_top_94084bdb.png)
@@ -2007,5 +2053,860 @@ export function buildBridgeEnvironment(
     rodSpecs,
     pitDropY,
     pitBounds,
+  };
+}
+
+// ============================================================================
+// Stage 4: Bounce Stage ("バウンドチャレンジ") Models
+// ============================================================================
+
+function buildBounceSmallArm(
+  side: -1 | 1,
+  normalMap: THREE.Texture,
+  isSoftwareGl: boolean,
+): THREE.Group {
+  const armGroup = new THREE.Group();
+
+  const clearAcrylicMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf1f5f9,
+    metalness: 0.04,
+    roughness: 0.08,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.06,
+    ior: 1.49,
+    transparent: true,
+    opacity: isSoftwareGl ? 0.48 : 0.44,
+    depthWrite: false,
+  });
+
+  const ribAcrylicMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.08,
+    roughness: 0.12,
+    clearcoat: 1.0,
+    transparent: true,
+    opacity: isSoftwareGl ? 0.68 : 0.64,
+  });
+
+  const whiteInsertMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.25,
+    metalness: 0.08,
+  });
+
+  const stainlessMat = new THREE.MeshPhysicalMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.96,
+    roughness: 0.16,
+    anisotropy: 0.72,
+    normalMap,
+    normalScale: new THREE.Vector2(0.08, 0.08),
+  });
+
+  // Matte-black molded rubber claw boot covering the tip (images__94__0fc852cb.jpeg)
+  const blackRubberMat = new THREE.MeshStandardMaterial({
+    color: 0x18181b,
+    roughness: 0.82,
+    metalness: 0.04,
+  });
+
+  const mountBlock = new THREE.Mesh(
+    new THREE.BoxGeometry(0.056, 0.056, 0.044),
+    whiteInsertMat,
+  );
+  mountBlock.castShadow = true;
+  armGroup.add(mountBlock);
+
+  // Compact S-Size L-shaped acrylic arm profile (images__95__37bbe8ee.jpeg)
+  const s = side;
+  const elbowX = 0.175 * s;
+  const elbowY = -0.155;
+  const botX = -0.072 * s;
+  const botY = -0.365;
+
+  const armSpine = [
+    new THREE.Vector2(0, 0),
+    new THREE.Vector2(elbowX, elbowY),
+    new THREE.Vector2(botX, botY),
+  ];
+
+  const armShape = new THREE.Shape();
+  const halfW = 0.02;
+  const d1 = new THREE.Vector2(elbowX, elbowY).normalize();
+  const n1 = new THREE.Vector2(-d1.y, d1.x).multiplyScalar(halfW);
+  const d2 = new THREE.Vector2(botX - elbowX, botY - elbowY).normalize();
+  const n2 = new THREE.Vector2(-d2.y, d2.x).multiplyScalar(halfW);
+
+  const outerN1 = n1.clone().multiplyScalar(s);
+  const outerN2 = n2.clone().multiplyScalar(s);
+  const innerN1 = outerN1.clone().negate();
+  const innerN2 = outerN2.clone().negate();
+
+  const p0Out = armSpine[0].clone().add(outerN1);
+  const p1OutA = armSpine[1].clone().add(outerN1);
+  const p1OutB = armSpine[1].clone().add(outerN2);
+  const p2Out = armSpine[2].clone().add(outerN2);
+  const p2In = armSpine[2].clone().add(innerN2);
+  const p1InB = armSpine[1].clone().add(innerN2);
+  const p1InA = armSpine[1].clone().add(innerN1);
+  const p0In = armSpine[0].clone().add(innerN1);
+
+  const elbowOuterMid = p1OutA
+    .clone()
+    .add(p1OutB)
+    .multiplyScalar(0.5)
+    .add(outerN1.clone().add(outerN2).multiplyScalar(0.35));
+  const elbowInnerMid = p1InA.clone().add(p1InB).multiplyScalar(0.5);
+
+  armShape.moveTo(p0Out.x, p0Out.y);
+  armShape.lineTo(p1OutA.x, p1OutA.y);
+  armShape.quadraticCurveTo(elbowOuterMid.x, elbowOuterMid.y, p1OutB.x, p1OutB.y);
+  armShape.lineTo(p2Out.x, p2Out.y);
+  armShape.lineTo(p2In.x, p2In.y);
+  armShape.lineTo(p1InB.x, p1InB.y);
+  armShape.quadraticCurveTo(elbowInnerMid.x, elbowInnerMid.y, p1InA.x, p1InA.y);
+  armShape.lineTo(p0In.x, p0In.y);
+  armShape.closePath();
+
+  const armBodyGeo = new THREE.ExtrudeGeometry(armShape, {
+    depth: 0.024,
+    bevelEnabled: true,
+    bevelThickness: 0.003,
+    bevelSize: 0.003,
+    bevelSegments: 2,
+    curveSegments: 8,
+  });
+  armBodyGeo.translate(0, 0, -0.012);
+  const armBodyMesh = new THREE.Mesh(armBodyGeo, clearAcrylicMat);
+  armBodyMesh.renderOrder = 6;
+  armGroup.add(armBodyMesh);
+
+  const seg1Len = Math.hypot(elbowX, elbowY);
+  const seg1Angle = Math.atan2(elbowY, elbowX);
+  const seg2Len = Math.hypot(botX - elbowX, botY - elbowY);
+  const seg2Angle = Math.atan2(botY - elbowY, botX - elbowX);
+
+  const rail1Geo = new THREE.BoxGeometry(seg1Len, 0.006, 0.032);
+  const rail2Geo = new THREE.BoxGeometry(seg2Len, 0.006, 0.032);
+  [-0.017, 0.017].forEach((offset) => {
+    const r1 = new THREE.Mesh(rail1Geo, ribAcrylicMat);
+    r1.position.set(
+      elbowX * 0.5 - Math.sin(seg1Angle) * offset,
+      elbowY * 0.5 + Math.cos(seg1Angle) * offset,
+      0,
+    );
+    r1.rotation.z = seg1Angle;
+
+    const r2 = new THREE.Mesh(rail2Geo, ribAcrylicMat);
+    r2.position.set(
+      (elbowX + botX) * 0.5 - Math.sin(seg2Angle) * offset,
+      (elbowY + botY) * 0.5 + Math.cos(seg2Angle) * offset,
+      0,
+    );
+    r2.rotation.z = seg2Angle;
+    armGroup.add(r1, r2);
+  });
+
+  // Stainless notched mounting bracket peeking out above the large black rubber boot (images__94__0fc852cb.jpeg)
+  const metalTabGeo = new THREE.BoxGeometry(0.068, 0.022, 0.036);
+  const metalTab = new THREE.Mesh(metalTabGeo, stainlessMat);
+  metalTab.position.set(
+    botX - Math.cos(seg2Angle) * 0.026,
+    botY - Math.sin(seg2Angle) * 0.026,
+    0,
+  );
+  metalTab.rotation.z = seg2Angle;
+  armGroup.add(metalTab);
+
+  // Enlarged chunky matte-black rubber boot tip ('黒いゴム爪', easier gripping)
+  const rubberBootGeo = new THREE.BoxGeometry(0.118, 0.044, 0.112);
+  const rubberBoot = new THREE.Mesh(rubberBootGeo, blackRubberMat);
+  rubberBoot.position.set(botX - 0.042 * s, botY - 0.016, 0);
+  rubberBoot.rotation.z = 0.28 * s;
+  rubberBoot.castShadow = true;
+  armGroup.add(rubberBoot);
+
+  const rubberRidgeGeo = new THREE.BoxGeometry(0.028, 0.048, 0.116);
+  const rubberRidge = new THREE.Mesh(rubberRidgeGeo, blackRubberMat);
+  rubberRidge.position.set(botX - 0.088 * s, botY - 0.029, 0);
+  rubberRidge.rotation.z = 0.28 * s;
+  armGroup.add(rubberRidge);
+
+  return armGroup;
+}
+
+export function buildBounceClawRig(
+  normalMap: THREE.Texture,
+  maxAnisotropy: number,
+  isSoftwareGl: boolean,
+): BridgeClawRigHandle {
+  const carriageGroup = new THREE.Group();
+  const headGroup = new THREE.Group();
+
+  const whitePlasticMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.24,
+    metalness: 0.08,
+  });
+  const blackHousingMat = new THREE.MeshStandardMaterial({
+    color: 0x18181b,
+    roughness: 0.34,
+    metalness: 0.28,
+  });
+  const blackAnodizedMat = new THREE.MeshStandardMaterial({
+    color: 0x18181b,
+    roughness: 0.35,
+    metalness: 0.78,
+  });
+  const chromeMat = new THREE.MeshPhysicalMaterial({
+    color: 0xe2e8f0,
+    metalness: 0.96,
+    roughness: 0.14,
+    anisotropy: 0.6,
+    normalMap,
+    normalScale: new THREE.Vector2(0.08, 0.08),
+  });
+
+  // Overhead gantry carriage
+  const trolleyBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.14, 0.32),
+    whitePlasticMat,
+  );
+  trolleyBody.castShadow = true;
+  carriageGroup.add(trolleyBody);
+
+  const collarSleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.048, 0.048, 0.22, 16),
+    blackAnodizedMat,
+  );
+  collarSleeve.position.set(0, -0.14, 0);
+  carriageGroup.add(collarSleeve);
+
+  // Coiled power cable
+  const coilPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 48; i++) {
+    const t = i / 48;
+    const angle = t * 10 * Math.PI * 2;
+    coilPts.push(
+      new THREE.Vector3(
+        -0.11 + Math.cos(angle) * 0.032,
+        -0.06 - t * 0.82,
+        Math.sin(angle) * 0.032,
+      ),
+    );
+  }
+  const coilMesh = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(coilPts), 44, 0.008, 6, false),
+    whitePlasticMat,
+  );
+  carriageGroup.add(coilMesh);
+
+  // Telescopic chrome shaft
+  const poleMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.032, 0.032, 1.0, 16),
+    chromeMat,
+  );
+  poleMesh.castShadow = true;
+
+  // Dark round UFO head housing matching images__93__34c84f4e.jpeg
+  const roundDrumGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.2, 28);
+  roundDrumGeo.rotateX(Math.PI / 2);
+  const roundDrum = new THREE.Mesh(roundDrumGeo, blackHousingMat);
+  roundDrum.castShadow = true;
+  roundDrum.receiveShadow = true;
+  headGroup.add(roundDrum);
+
+  const bezelRingGeo = new THREE.TorusGeometry(0.205, 0.016, 12, 32);
+  const bezelFront = new THREE.Mesh(bezelRingGeo, chromeMat);
+  bezelFront.position.set(0, 0, 0.1);
+  headGroup.add(bezelFront);
+
+  const faceTex = createBounceHeadFaceTexture(maxAnisotropy);
+  const faceGeo = new THREE.CircleGeometry(0.185, 28);
+  const faceMat = new THREE.MeshStandardMaterial({
+    map: faceTex,
+    roughness: 0.25,
+    metalness: 0.1,
+  });
+  const faceFront = new THREE.Mesh(faceGeo, faceMat);
+  faceFront.position.set(0, 0, 0.105);
+  const faceBack = new THREE.Mesh(faceGeo, faceMat);
+  faceBack.position.set(0, 0, -0.105);
+  faceBack.rotation.y = Math.PI;
+  headGroup.add(faceFront, faceBack);
+
+  const headCollar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.048, 0.052, 0.07, 16),
+    blackAnodizedMat,
+  );
+  headCollar.position.set(0, 0.23, 0);
+  headGroup.add(headCollar);
+
+  const leftArmPivotLocal = new THREE.Vector3(-0.17, -0.13, 0);
+  const rightArmPivotLocal = new THREE.Vector3(0.17, -0.13, 0);
+
+  const leftArmGroup = buildBounceSmallArm(-1, normalMap, isSoftwareGl);
+  const rightArmGroup = buildBounceSmallArm(1, normalMap, isSoftwareGl);
+
+  return {
+    carriageGroup,
+    headGroup,
+    leftArmGroup,
+    rightArmGroup,
+    poleMesh,
+    leftArmPivotLocal,
+    rightArmPivotLocal,
+    updatePole: (trolleyPos: THREE.Vector3, headPos: THREE.Vector3) => {
+      const topY = trolleyPos.y - 0.12;
+      const botY = headPos.y + 0.22;
+      const span = Math.max(0.08, topY - botY);
+      poleMesh.position.set(
+        THREE.MathUtils.lerp(trolleyPos.x, headPos.x, 0.5),
+        (topY + botY) * 0.5,
+        THREE.MathUtils.lerp(trolleyPos.z, headPos.z, 0.5),
+      );
+      poleMesh.scale.set(1, span, 1);
+    },
+  };
+}
+
+export interface BouncePrizeJarHandle {
+  group: THREE.Group;
+  width: number;
+  height: number;
+  depth: number;
+}
+
+export function buildBouncePrizeJar(
+  title: string,
+  bandColor: string,
+  fruitColor: string,
+  lidColor: number,
+  maxAnisotropy: number,
+): BouncePrizeJarHandle {
+  const group = new THREE.Group();
+  const width = 0.21;
+  const height = 0.28;
+  const depth = 0.21;
+
+  const labelTex = createFruitJarLabelTexture(
+    title,
+    bandColor,
+    fruitColor,
+    maxAnisotropy,
+  );
+  const boxBodyMat = new THREE.MeshPhysicalMaterial({
+    map: labelTex,
+    roughness: 0.16,
+    metalness: 0.04,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.08,
+  });
+  const glassCapMat = new THREE.MeshPhysicalMaterial({
+    color: 0xfef3c7,
+    roughness: 0.12,
+    metalness: 0.06,
+    clearcoat: 0.9,
+  });
+  const lidMat = new THREE.MeshStandardMaterial({
+    color: lidColor,
+    roughness: 0.28,
+    metalness: 0.22,
+  });
+
+  // Square/rectangular beveled fruit bottle box ("ターゲットを四角にして")
+  const sw = width * 0.46;
+  const sd = depth * 0.46;
+  const cr = 0.022;
+  const sqShape = new THREE.Shape();
+  sqShape.moveTo(-sw + cr, -sd);
+  sqShape.lineTo(sw - cr, -sd);
+  sqShape.quadraticCurveTo(sw, -sd, sw, -sd + cr);
+  sqShape.lineTo(sw, sd - cr);
+  sqShape.quadraticCurveTo(sw, sd, sw - cr, sd);
+  sqShape.lineTo(-sw + cr, sd);
+  sqShape.quadraticCurveTo(-sw, sd, -sw, sd - cr);
+  sqShape.lineTo(-sw, -sd + cr);
+  sqShape.quadraticCurveTo(-sw, -sd, -sw + cr, -sd);
+
+  const sqGeo = new THREE.ExtrudeGeometry(sqShape, {
+    depth: 0.215,
+    bevelEnabled: true,
+    bevelThickness: 0.01,
+    bevelSize: 0.009,
+    bevelSegments: 2,
+  });
+  sqGeo.rotateX(-Math.PI / 2);
+  sqGeo.translate(0, -0.125, 0);
+  const bodyMesh = new THREE.Mesh(sqGeo, boxBodyMat);
+  bodyMesh.castShadow = true;
+  bodyMesh.receiveShadow = true;
+  group.add(bodyMesh);
+
+  // Upper square shoulder collar + round twist lid
+  const shoulderMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.78, 0.026, depth * 0.78),
+    glassCapMat,
+  );
+  shoulderMesh.position.y = 0.105;
+  group.add(shoulderMesh);
+
+  const lidMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.076, 0.076, 0.036, 20),
+    lidMat,
+  );
+  lidMesh.position.y = 0.122;
+  lidMesh.castShadow = true;
+  group.add(lidMesh);
+
+  return { group, width, height, depth };
+}
+
+export interface BounceEnvironmentHandle {
+  group: THREE.Group;
+  zBridgeGroup: THREE.Group;
+  ballMesh: THREE.Mesh;
+  ballPos: THREE.Vector3;
+  ballRadius: number;
+  greenDeckTopY: number;
+  pinkDeckTopY: number;
+  pitDropY: number;
+  holeBoundsLeft: { minX: number; maxX: number; minZ: number; maxZ: number };
+  holeBoundsRight: { minX: number; maxX: number; minZ: number; maxZ: number };
+  guardRodSpecs: Array<{ x: number; y: number; z: number; length: number; radius: number }>;
+}
+
+export function buildBounceEnvironment(
+  isSoftwareGl: boolean,
+  maxAnisotropy: number,
+): BounceEnvironmentHandle {
+  const group = new THREE.Group();
+
+  const greenDeckTopY = -0.78;
+  const pinkDeckTopY = -0.84;
+  const ballRadius = 0.235;
+  const ballPos = new THREE.Vector3(0.0, pinkDeckTopY + ballRadius, 0.44);
+
+  // Dual Left & Right Drop Holes flanking the central ball ("ボールの右も獲得口に")
+  const holeBoundsLeft = {
+    minX: -1.2,
+    maxX: -0.4,
+    minZ: 0.02,
+    maxZ: 0.88,
+  };
+  const holeBoundsRight = {
+    minX: 0.4,
+    maxX: 1.2,
+    minZ: 0.02,
+    maxZ: 0.88,
+  };
+  const pitDropY = -0.98;
+
+  // Bright pink/magenta showcase backdrop (matching images__93__34c84f4e.jpeg)
+  const backWallMat = new THREE.MeshStandardMaterial({
+    color: 0xfdf2f8,
+    roughness: 0.5,
+    metalness: 0.05,
+  });
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 6.2), backWallMat);
+  backWall.position.set(0, 0.5, -2.15);
+  backWall.receiveShadow = true;
+  group.add(backWall);
+
+  const pinkGlowPanelMat = new THREE.MeshBasicMaterial({ color: 0xf472b6 });
+  const backNeonPanel = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.2, 2.7),
+    pinkGlowPanelMat,
+  );
+  backNeonPanel.position.set(0, 0.95, -2.13);
+  group.add(backNeonPanel);
+
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    roughness: 0.55,
+    metalness: 0.1,
+  });
+  const floorPlane = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 4.5), floorMat);
+  floorPlane.rotation.x = -Math.PI / 2;
+  floorPlane.position.set(0, -1.78, -0.2);
+  floorPlane.receiveShadow = true;
+  group.add(floorPlane);
+
+  // Corner cabinet pillars
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0xcbd5e1,
+    metalness: 0.65,
+    roughness: 0.32,
+  });
+  const pillarGeo = new THREE.BoxGeometry(0.16, 5.4, 0.18);
+  [
+    [-2.18, 1.48],
+    [2.18, 1.48],
+    [-2.18, -1.52],
+    [2.18, -1.52],
+  ].forEach(([px, pz]) => {
+    const pillar = new THREE.Mesh(pillarGeo, frameMat);
+    pillar.position.set(px, 0.5, pz);
+    group.add(pillar);
+  });
+
+  // Overhead 3D Dual-Axis Gantry
+  const railMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    metalness: 0.85,
+    roughness: 0.24,
+  });
+  const frontXTrack = new THREE.Mesh(
+    new THREE.BoxGeometry(4.1, 0.07, 0.08),
+    railMat,
+  );
+  frontXTrack.position.set(0, 2.52, 1.08);
+  const backXTrack = new THREE.Mesh(
+    new THREE.BoxGeometry(4.1, 0.07, 0.08),
+    railMat,
+  );
+  backXTrack.position.set(0, 2.52, -1.08);
+  group.add(frontXTrack, backXTrack);
+
+  const zBridgeGroup = new THREE.Group();
+  zBridgeGroup.position.set(0, 2.5, 0);
+  const zBridgeBeam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.11, 0.08, 2.24),
+    railMat,
+  );
+  zBridgeBeam.castShadow = true;
+  const endTruckGeo = new THREE.BoxGeometry(0.24, 0.12, 0.16);
+  const endTruckFront = new THREE.Mesh(endTruckGeo, railMat);
+  endTruckFront.position.set(0, 0.02, 1.08);
+  const endTruckBack = new THREE.Mesh(endTruckGeo, railMat);
+  endTruckBack.position.set(0, 0.02, -1.08);
+  zBridgeGroup.add(zBridgeBeam, endTruckFront, endTruckBack);
+  group.add(zBridgeGroup);
+
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const led1 = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.06, 0.24), ledMat);
+  led1.position.set(0, 2.72, -0.55);
+  const led2 = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.05, 0.12), ledMat);
+  led2.position.set(0, 2.72, 1.25);
+  group.add(led1, led2);
+
+  // Two-tier realistic background display shelves + POP signs (matching images__93__34c84f4e.jpeg)
+  const whiteMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.34,
+    metalness: 0.08,
+  });
+  const shelfUpper = new THREE.Mesh(
+    new THREE.BoxGeometry(4.4, 0.045, 0.56),
+    whiteMat,
+  );
+  shelfUpper.position.set(0, 0.85, -1.72);
+  const shelfLower = new THREE.Mesh(
+    new THREE.BoxGeometry(4.4, 0.045, 0.56),
+    whiteMat,
+  );
+  shelfLower.position.set(0, -0.08, -1.72);
+  const centerMullion = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 2.6, 0.08),
+    whiteMat,
+  );
+  centerMullion.position.set(0.35, 0.75, -1.48);
+  group.add(shelfUpper, shelfLower, centerMullion);
+
+  // Display fruit jars (left) & drink bottles (right) on upper & lower shelves
+  const dispFruitTex = createFruitJarLabelTexture(
+    'フルーツ',
+    '#16a34a',
+    '#f97316',
+    maxAnisotropy,
+  );
+  const dispFruitMat = new THREE.MeshStandardMaterial({
+    map: dispFruitTex,
+    roughness: 0.24,
+  });
+  const dispDrinkTex = createFruitJarLabelTexture(
+    'ドリンク',
+    '#0284c7',
+    '#e0f2fe',
+    maxAnisotropy,
+  );
+  const dispDrinkMat = new THREE.MeshStandardMaterial({
+    map: dispDrinkTex,
+    roughness: 0.2,
+  });
+  const dispJarGeo = new THREE.BoxGeometry(0.2, 0.27, 0.18);
+  const dispBottleGeo = new THREE.CylinderGeometry(0.075, 0.085, 0.34, 14);
+  [1.02, 0.09].forEach((sy) => {
+    for (let col = 0; col < 7; col++) {
+      const jar = new THREE.Mesh(dispJarGeo, dispFruitMat);
+      jar.position.set(-1.65 + col * 0.28, sy, -1.72);
+      group.add(jar);
+    }
+    for (let col = 0; col < 5; col++) {
+      const bottle = new THREE.Mesh(dispBottleGeo, dispDrinkMat);
+      bottle.position.set(0.58 + col * 0.26, sy + 0.03, -1.72);
+      group.add(bottle);
+    }
+  });
+
+  // POP banners matching the green "フルーツボトル" & light-blue drink signs in photo
+  const leftPopTex = createBouncePopSignTexture(
+    'フルーツボトル',
+    'おいしいフルーツたっぷり！',
+    '#15803d',
+    '#facc15',
+    maxAnisotropy,
+  );
+  const leftPop = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.36, 0.56),
+    new THREE.MeshBasicMaterial({ map: leftPopTex }),
+  );
+  leftPop.position.set(-0.52, 0.5, -1.46);
+
+  const rightPopTex = createBouncePopSignTexture(
+    'バウンド設定',
+    'ボールに当てて穴に入れよう！',
+    '#bae6fd',
+    '#1e3a8a',
+    maxAnisotropy,
+  );
+  const rightPop = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.12, 0.48),
+    new THREE.MeshBasicMaterial({ map: rightPopTex }),
+  );
+  rightPop.position.set(1.02, 0.52, -1.46);
+  group.add(leftPop, rightPop);
+
+  // 1. Back Green-Striped Prize Shelf Zone (z in [-1.18, -0.02], top = -0.78)
+  const greenTex = createGreenStripedMatTexture(maxAnisotropy);
+  const greenMat = new THREE.MeshStandardMaterial({
+    map: greenTex,
+    roughness: 0.62,
+    metalness: 0.02,
+  });
+  const backDeck = new THREE.Mesh(
+    new THREE.BoxGeometry(2.56, 0.98, 1.18),
+    whiteMat,
+  );
+  backDeck.position.set(0, greenDeckTopY - 0.49, -0.61);
+  backDeck.receiveShadow = true;
+  group.add(backDeck);
+
+  const greenTopSheet = new THREE.Mesh(
+    new THREE.BoxGeometry(2.44, 0.016, 1.12),
+    greenMat,
+  );
+  greenTopSheet.position.set(0, greenDeckTopY + 0.004, -0.6);
+  greenTopSheet.receiveShadow = true;
+  group.add(greenTopSheet);
+
+  // Decorative mini woven basket on the far back-right corner (photo detail!)
+  const basketMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.78,
+  });
+  const miniBasket = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.08, 0.14, 14),
+    basketMat,
+  );
+  miniBasket.position.set(1.06, greenDeckTopY + 0.075, -0.82);
+  group.add(miniBasket);
+
+  const clearAcrylicWallMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf8fafc,
+    metalness: 0.04,
+    roughness: 0.08,
+    clearcoat: 0.9,
+    transparent: true,
+    opacity: isSoftwareGl ? 0.24 : 0.18,
+    depthWrite: false,
+  });
+  const shelfLip = new THREE.Mesh(
+    new THREE.BoxGeometry(2.42, 0.036, 0.02),
+    clearAcrylicWallMat,
+  );
+  shelfLip.position.set(0, greenDeckTopY + 0.018, -0.04);
+  shelfLip.renderOrder = 4;
+  group.add(shelfLip);
+
+  // 2. Central Pink Bounce Cradle Platform (x in [-0.40, 0.40], z in [-0.02, 0.90], top = -0.84)
+  const pinkDeckMat = new THREE.MeshPhysicalMaterial({
+    color: 0xec4899,
+    roughness: 0.26,
+    metalness: 0.06,
+    clearcoat: 0.55,
+  });
+  const centerPinkBase = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.92, 0.92),
+    whiteMat,
+  );
+  centerPinkBase.position.set(0, pinkDeckTopY - 0.46, 0.44);
+  centerPinkBase.receiveShadow = true;
+  group.add(centerPinkBase);
+
+  const centerPinkPlate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.78, 0.022, 0.9),
+    pinkDeckMat,
+  );
+  centerPinkPlate.position.set(0, pinkDeckTopY - 0.005, 0.44);
+  centerPinkPlate.receiveShadow = true;
+  group.add(centerPinkPlate);
+
+  // White guide bars cradling the blue bouncy ball (matching images__93__34c84f4e.jpeg)
+  const guideBarGeoZ = new THREE.CylinderGeometry(0.018, 0.018, 0.54, 12);
+  guideBarGeoZ.rotateX(Math.PI / 2);
+  [-0.24, 0.24].forEach((gx) => {
+    const gBar = new THREE.Mesh(guideBarGeoZ, whiteMat);
+    gBar.position.set(gx, pinkDeckTopY + 0.022, ballPos.z);
+    gBar.castShadow = true;
+    group.add(gBar);
+  });
+
+  const guideBarGeoX = new THREE.CylinderGeometry(0.018, 0.018, 0.48, 12);
+  guideBarGeoX.rotateZ(Math.PI / 2);
+  [ballPos.z - 0.25, ballPos.z + 0.25].forEach((gz) => {
+    const gBar = new THREE.Mesh(guideBarGeoX, whiteMat);
+    gBar.position.set(ballPos.x, pinkDeckTopY + 0.022, gz);
+    gBar.castShadow = true;
+    group.add(gBar);
+  });
+
+  // 3. Big Glossy Blue Bouncy Ball (images__93__34c84f4e.jpeg)
+  const blueBallMat = new THREE.MeshPhysicalMaterial({
+    color: 0x1d4ed8,
+    roughness: 0.14,
+    metalness: 0.12,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.06,
+  });
+  const ballMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(ballRadius, 32, 24),
+    blueBallMat,
+  );
+  ballMesh.position.copy(ballPos);
+  ballMesh.castShadow = true;
+  ballMesh.receiveShadow = true;
+  group.add(ballMesh);
+
+  // 4. BOTH Left & Right Drop Holes ("獲得口", flanking the blue ball) + Guard Rods ("獲得口に棒")
+  const chutePinkMat = new THREE.MeshStandardMaterial({
+    color: 0xf472b6,
+    roughness: 0.42,
+    metalness: 0.04,
+  });
+  const chuteDarkMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.68,
+    metalness: 0.2,
+  });
+
+  // Left & Right chute floors
+  const leftFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.84, 0.08, 0.92),
+    chutePinkMat,
+  );
+  leftFloor.position.set(-0.8, -1.72, 0.45);
+  const rightFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.84, 0.08, 0.92),
+    chuteDarkMat,
+  );
+  rightFloor.position.set(0.8, -1.72, 0.45);
+  group.add(leftFloor, rightFloor);
+
+  // Spare prize box visible down inside the right chute (photo detail!)
+  const sparePrize = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.16, 0.22),
+    dispFruitMat,
+  );
+  sparePrize.position.set(0.78, -1.6, 0.45);
+  sparePrize.rotation.y = 0.35;
+  group.add(sparePrize);
+
+  // Left hole inner pink accent walls (matching pink bottom-left in photo)
+  const leftPinkInnerWall = new THREE.Mesh(
+    new THREE.BoxGeometry(0.03, 0.88, 0.9),
+    chutePinkMat,
+  );
+  leftPinkInnerWall.position.set(-1.21, -1.28, 0.44);
+  group.add(leftPinkInnerWall);
+
+  // 2 white cylindrical guard rods across EACH drop hole ('写真のように獲得口に棒をつけてとれにくくして')
+  const guardRodSpecs = [
+    { x: -0.94, y: -0.82, z: 0.45, length: 0.86, radius: 0.02 },
+    { x: -0.66, y: -0.82, z: 0.45, length: 0.86, radius: 0.02 },
+    { x: 0.66, y: -0.82, z: 0.45, length: 0.86, radius: 0.02 },
+    { x: 0.94, y: -0.82, z: 0.45, length: 0.86, radius: 0.02 },
+  ];
+  const guardRodGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.86, 12);
+  guardRodGeo.rotateX(Math.PI / 2);
+  guardRodSpecs.forEach((spec) => {
+    const rod = new THREE.Mesh(guardRodGeo, whiteMat);
+    rod.position.set(spec.x, spec.y, spec.z);
+    rod.castShadow = true;
+    rod.receiveShadow = true;
+    group.add(rod);
+  });
+
+  // Outer left & right aprons outside drop holes
+  const farLeftApron = new THREE.Mesh(
+    new THREE.BoxGeometry(0.85, 0.98, 2.2),
+    whiteMat,
+  );
+  farLeftApron.position.set(-1.64, -1.29, -0.1);
+  const farRightApron = farLeftApron.clone();
+  farRightApron.position.set(1.64, -1.29, -0.1);
+  group.add(farLeftApron, farRightApron);
+
+  // Front rim skirt below chutes
+  const frontSkirt = new THREE.Mesh(
+    new THREE.BoxGeometry(2.54, 0.84, 0.46),
+    whiteMat,
+  );
+  frontSkirt.position.set(0, -1.34, 1.12);
+  group.add(frontSkirt);
+
+  // Clear acrylic perimeter containment walls around drop holes so jars bounce cleanly inside
+  const leftWall = new THREE.Mesh(
+    new THREE.BoxGeometry(0.03, 0.56, 2.08),
+    clearAcrylicWallMat,
+  );
+  leftWall.position.set(-1.22, -0.56, -0.14);
+  leftWall.renderOrder = 4;
+  const rightWall = leftWall.clone();
+  rightWall.position.set(1.22, -0.56, -0.14);
+  const frontLowWall = new THREE.Mesh(
+    new THREE.BoxGeometry(2.44, 0.34, 0.03),
+    clearAcrylicWallMat,
+  );
+  frontLowWall.position.set(0, -0.68, 0.89);
+  frontLowWall.renderOrder = 4;
+  group.add(leftWall, rightWall, frontLowWall);
+
+  // Front cabinet glass pane
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    metalness: 0.28,
+    roughness: 0.05,
+    transparent: true,
+    opacity: 0.07,
+    depthWrite: false,
+  });
+  const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(4.3, 4.4), glassMat);
+  frontGlass.position.set(0, 0.4, 1.54);
+  frontGlass.renderOrder = 12;
+  group.add(frontGlass);
+
+  return {
+    group,
+    zBridgeGroup,
+    ballMesh,
+    ballPos,
+    ballRadius,
+    greenDeckTopY,
+    pinkDeckTopY,
+    pitDropY,
+    holeBoundsLeft,
+    holeBoundsRight,
+    guardRodSpecs,
   };
 }

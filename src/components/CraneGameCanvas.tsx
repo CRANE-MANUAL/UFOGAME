@@ -1,9 +1,16 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import {
+  BOUNCE_JAR_LAYOUTS,
+  BouncePhysicsWorld,
+} from '../three/bouncePhysics';
 import { BridgePhysicsWorld } from '../three/bridgePhysics';
 import {
   buildArcadeTrolley,
+  buildBounceClawRig,
+  buildBounceEnvironment,
+  buildBouncePrizeJar,
   buildBridgeClawRig,
   buildBridgeEnvironment,
   buildBridgePrizeBox,
@@ -34,6 +41,7 @@ interface CraneGameCanvasProps {
   cameraView: CameraView;
   cameraPresetNonce: number;
   roundNonce: number;
+  hardResetNonce: number;
   inputRef: React.MutableRefObject<ControlInputState>;
   onUserOrbitStart: () => void;
   onTelemetry: (telemetry: GameHudTelemetry) => void;
@@ -59,11 +67,21 @@ const BRIDGE_SIDE_TARGET = new THREE.Vector3(0.0, -0.35, 0.0);
 const BRIDGE_FREE_POS = new THREE.Vector3(1.22, 0.62, 2.28);
 const BRIDGE_FREE_TARGET = new THREE.Vector3(0.0, -0.32, 0.0);
 
+const BOUNCE_FRONT_POS = new THREE.Vector3(0.0, 0.66, 3.35);
+const BOUNCE_FRONT_TARGET = new THREE.Vector3(0.0, -0.32, 0.0);
+
+const BOUNCE_SIDE_POS = new THREE.Vector3(2.35, 0.38, 0.72);
+const BOUNCE_SIDE_TARGET = new THREE.Vector3(0.0, -0.38, 0.0);
+
+const BOUNCE_FREE_POS = new THREE.Vector3(1.32, 0.72, 2.38);
+const BOUNCE_FREE_TARGET = new THREE.Vector3(0.0, -0.34, 0.0);
+
 export function CraneGameCanvas({
   stage,
   cameraView,
   cameraPresetNonce,
   roundNonce,
+  hardResetNonce,
   inputRef,
   onUserOrbitStart,
   onTelemetry,
@@ -75,9 +93,9 @@ export function CraneGameCanvas({
     active: false,
     view: cameraView,
   });
-  const physicsRef = useRef<CranePhysicsWorld | BridgePhysicsWorld | null>(
-    null,
-  );
+  const physicsRef = useRef<
+    CranePhysicsWorld | BridgePhysicsWorld | BouncePhysicsWorld | null
+  >(null);
   const callbacksRef = useRef({
     onUserOrbitStart,
     onTelemetry,
@@ -102,10 +120,17 @@ export function CraneGameCanvas({
   }, [roundNonce]);
 
   useEffect(() => {
+    if (physicsRef.current && hardResetNonce > 0) {
+      physicsRef.current.resetRound(false);
+    }
+  }, [hardResetNonce]);
+
+  useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
     const isBridgeStage = stage.stageType === 'bridge';
+    const isBounceStage = stage.stageType === 'bounce';
     const isSoftwareGl = detectSoftwareWebGL();
     const renderer = createStudioRenderer(container, isSoftwareGl);
     const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -123,12 +148,22 @@ export function CraneGameCanvas({
       0.1,
       30,
     );
-    camera.position.copy(isBridgeStage ? BRIDGE_FRONT_POS : FRONT_CAM_POS);
+    camera.position.copy(
+      isBounceStage
+        ? BOUNCE_FRONT_POS
+        : isBridgeStage
+          ? BRIDGE_FRONT_POS
+          : FRONT_CAM_POS,
+    );
 
     // Free 3D OrbitControls (1-finger / mouse drag to rotate, pinch / wheel to zoom, 2-finger / right-drag to pan)
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.copy(
-      isBridgeStage ? BRIDGE_FRONT_TARGET : FRONT_CAM_TARGET,
+      isBounceStage
+        ? BOUNCE_FRONT_TARGET
+        : isBridgeStage
+          ? BRIDGE_FRONT_TARGET
+          : FRONT_CAM_TARGET,
     );
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.08;
@@ -223,6 +258,54 @@ export function CraneGameCanvas({
         }
         return telemetry;
       };
+    } else if (isBounceStage) {
+      const bounceEnv = buildBounceEnvironment(isSoftwareGl, maxAnisotropy);
+      scene.add(bounceEnv.group);
+      bridgeZBridge = bounceEnv.zBridgeGroup;
+
+      const clawRig = buildBounceClawRig(normalMap, maxAnisotropy, isSoftwareGl);
+      scene.add(
+        clawRig.carriageGroup,
+        clawRig.poleMesh,
+        clawRig.headGroup,
+        clawRig.leftArmGroup,
+        clawRig.rightArmGroup,
+      );
+
+      const jarModels = BOUNCE_JAR_LAYOUTS.map((spec) => {
+        const jar = buildBouncePrizeJar(
+          spec.title,
+          spec.bandColor,
+          spec.fruitColor,
+          spec.lidColor,
+          maxAnisotropy,
+        );
+        scene.add(jar.group);
+        return jar;
+      });
+
+      const bouncePhysics = new BouncePhysicsWorld(
+        stage,
+        clawRig,
+        jarModels,
+        bounceEnv,
+        {
+          onMetalClink: (intensity) => arcadeAudio.playMetalClink(intensity),
+          onHookCatch: () => arcadeAudio.playHookCatch(),
+          onRingSlip: () => arcadeAudio.playRingSlip(),
+          onWin: () => callbacksRef.current.onWin(),
+          onFail: (reason) => callbacksRef.current.onFail(reason),
+        },
+      );
+      physicsRef.current = bouncePhysics;
+
+      onTickSceneUpdate = (dt, input) => {
+        const telemetry = bouncePhysics.step(dt, input);
+        if (bridgeZBridge) {
+          bridgeZBridge.position.x = bouncePhysics.trolleyPos.x;
+        }
+        return telemetry;
+      };
     } else {
       const cabinet = buildCabinetEnvironment(isSoftwareGl, maxAnisotropy);
       scene.add(cabinet.group);
@@ -312,28 +395,40 @@ export function CraneGameCanvas({
       // Smooth preset camera transitions that automatically yield to OrbitControls on drag/zoom
       if (transitionRef.current.active) {
         const preset = transitionRef.current.view;
-        const desiredPos = isBridgeStage
+        const desiredPos = isBounceStage
           ? preset === 'side'
-            ? BRIDGE_SIDE_POS
+            ? BOUNCE_SIDE_POS
             : preset === 'free'
-              ? BRIDGE_FREE_POS
-              : BRIDGE_FRONT_POS
-          : preset === 'side'
-            ? SIDE_CAM_POS
-            : preset === 'free'
-              ? FREE_CAM_POS
-              : FRONT_CAM_POS;
-        const desiredTarget = isBridgeStage
+              ? BOUNCE_FREE_POS
+              : BOUNCE_FRONT_POS
+          : isBridgeStage
+            ? preset === 'side'
+              ? BRIDGE_SIDE_POS
+              : preset === 'free'
+                ? BRIDGE_FREE_POS
+                : BRIDGE_FRONT_POS
+            : preset === 'side'
+              ? SIDE_CAM_POS
+              : preset === 'free'
+                ? FREE_CAM_POS
+                : FRONT_CAM_POS;
+        const desiredTarget = isBounceStage
           ? preset === 'side'
-            ? BRIDGE_SIDE_TARGET
+            ? BOUNCE_SIDE_TARGET
             : preset === 'free'
-              ? BRIDGE_FREE_TARGET
-              : BRIDGE_FRONT_TARGET
-          : preset === 'side'
-            ? SIDE_CAM_TARGET
-            : preset === 'free'
-              ? FREE_CAM_TARGET
-              : FRONT_CAM_TARGET;
+              ? BOUNCE_FREE_TARGET
+              : BOUNCE_FRONT_TARGET
+          : isBridgeStage
+            ? preset === 'side'
+              ? BRIDGE_SIDE_TARGET
+              : preset === 'free'
+                ? BRIDGE_FREE_TARGET
+                : BRIDGE_FRONT_TARGET
+            : preset === 'side'
+              ? SIDE_CAM_TARGET
+              : preset === 'free'
+                ? FREE_CAM_TARGET
+                : FRONT_CAM_TARGET;
 
         camera.position.x = THREE.MathUtils.damp(
           camera.position.x,
